@@ -62,7 +62,7 @@
 namespace libfreenect2
 {
 
-std::string loadCLSource(const std::string &filename)
+std::string loadCLKdeSource(const std::string &filename)
 {
   const unsigned char *data;
   size_t length = 0;
@@ -76,22 +76,22 @@ std::string loadCLSource(const std::string &filename)
   return std::string(reinterpret_cast<const char *>(data), length);
 }
 
-class OpenCLDepthPacketProcessorImpl;
+class OpenCLKdeDepthPacketProcessorImpl;
 
-class OpenCLBuffer: public Buffer
+class OpenCLKdeBuffer: public Buffer
 {
 public:
   cl::Buffer buffer;
 };
 
-class OpenCLAllocator: public Allocator
+class OpenCLKdeAllocator: public Allocator
 {
 private:
   cl::Context &context;
   cl::CommandQueue &queue;
   const bool isInputBuffer;
 
-  bool allocate_opencl(OpenCLBuffer *b, size_t size)
+  bool allocate_opencl(OpenCLKdeBuffer *b, size_t size)
   {
     if(isInputBuffer)
     {
@@ -109,7 +109,7 @@ private:
     return true;
   }
 
-  bool release_opencl(OpenCLBuffer *b)
+  bool release_opencl(OpenCLKdeBuffer *b)
   {
     cl::Event event;
     CHECK_CL_RETURN(queue.enqueueUnmapMemObject(b->buffer, b->data, NULL, &event));
@@ -118,13 +118,13 @@ private:
   }
 
 public:
-  OpenCLAllocator(cl::Context &context, cl::CommandQueue &queue, bool isInputBuffer) : context(context), queue(queue), isInputBuffer(isInputBuffer)
+  OpenCLKdeAllocator(cl::Context &context, cl::CommandQueue &queue, bool isInputBuffer) : context(context), queue(queue), isInputBuffer(isInputBuffer)
   {
   }
 
   virtual Buffer *allocate(size_t size)
   {
-    OpenCLBuffer *b = new OpenCLBuffer();
+    OpenCLKdeBuffer *b = new OpenCLKdeBuffer();
     if(!allocate_opencl(b, size))
       b->data = NULL;
     return b;
@@ -134,32 +134,32 @@ public:
   {
     if(b == NULL)
       return;
-    release_opencl(static_cast<OpenCLBuffer *>(b));
+    release_opencl(static_cast<OpenCLKdeBuffer *>(b));
     delete b;
   }
 };
 
-class OpenCLFrame: public Frame
+class OpenCLKdeFrame: public Frame
 {
 private:
-  OpenCLBuffer *buffer;
+  OpenCLKdeBuffer *buffer;
 
 public:
-  OpenCLFrame(OpenCLBuffer *buffer)
+  OpenCLKdeFrame(OpenCLKdeBuffer *buffer)
     : Frame(512, 424, 4, (unsigned char*)-1)
     , buffer(buffer)
   {
     data = buffer->data;
   }
 
-  virtual ~OpenCLFrame()
+  virtual ~OpenCLKdeFrame()
   {
     buffer->allocator->free(buffer);
     data = NULL;
   }
 };
 
-class OpenCLDepthPacketProcessorImpl: public WithPerfLogging
+class OpenCLKdeDepthPacketProcessorImpl: public WithPerfLogging
 {
 public:
   static const size_t IMAGE_SIZE = 512*424;
@@ -181,8 +181,8 @@ public:
 
   cl::Kernel kernel_processPixelStage1;
   cl::Kernel kernel_filterPixelStage1;
-  cl::Kernel kernel_processPixelStage2;
-  cl::Kernel kernel_filterPixelStage2;
+  cl::Kernel kernel_processPixelStage2_phase;
+  cl::Kernel kernel_filter_kde;
 
   // Read only buffers
   size_t buf_lut11to16_size;
@@ -190,6 +190,7 @@ public:
   size_t buf_x_table_size;
   size_t buf_z_table_size;
   size_t buf_packet_size;
+  size_t buf_gauss_kernel_size;
 
   cl::Buffer buf_lut11to16;
   cl::Buffer buf_p0_table;
@@ -207,7 +208,7 @@ public:
   size_t buf_edge_test_size;
   size_t buf_depth_size;
   size_t buf_ir_sum_size;
-  size_t buf_filtered_size;
+  size_t buf_phase_conf_size;
 
   cl::Buffer buf_a;
   cl::Buffer buf_b;
@@ -218,7 +219,14 @@ public:
   cl::Buffer buf_edge_test;
   cl::Buffer buf_depth;
   cl::Buffer buf_ir_sum;
-  cl::Buffer buf_filtered;
+  cl::Buffer buf_conf_1;
+  cl::Buffer buf_conf_2;
+  cl::Buffer buf_conf_3;
+  cl::Buffer buf_phase_1;
+  cl::Buffer buf_phase_2;
+  cl::Buffer buf_phase_3;
+  cl::Buffer buf_gaussian_kernel;
+  cl::Buffer buf_phase_conf;
 
   bool deviceInitialized;
   bool programBuilt;
@@ -231,7 +239,7 @@ public:
   int count;
 #endif
 
-  OpenCLDepthPacketProcessorImpl(const int deviceId = -1)
+  OpenCLKdeDepthPacketProcessorImpl(const int deviceId = -1)
     : deviceInitialized(false)
     , programBuilt(false)
     , programInitialized(false)
@@ -244,9 +252,9 @@ public:
 
     deviceInitialized = initDevice(deviceId);
 
-    input_buffer_allocator = new PoolAllocator(new OpenCLAllocator(context, queue, true));
-    ir_buffer_allocator = new PoolAllocator(new OpenCLAllocator(context, queue, false));
-    depth_buffer_allocator = new PoolAllocator(new OpenCLAllocator(context, queue, false));
+    input_buffer_allocator = new PoolAllocator(new OpenCLKdeAllocator(context, queue, true));
+    ir_buffer_allocator = new PoolAllocator(new OpenCLKdeAllocator(context, queue, false));
+    depth_buffer_allocator = new PoolAllocator(new OpenCLKdeAllocator(context, queue, false));
 
     newIrFrame();
     newDepthFrame();
@@ -271,13 +279,13 @@ public:
       char buf[16];
       if (clGetICDLoaderInfoOCLICD(CL_ICDL_VERSION, sizeof(buf), buf, NULL) == CL_SUCCESS)
       {
-        if (strcmp(buf, "2.2.4") < 0 && strlen(buf) <= 5)
+        if (strcmp(buf, "2.2.4") < 0)
           LOG_WARNING << "Your ocl-icd has deadlock bugs. Update to 2.2.4+ is recommended.";
       }
     }
   }
 
-  ~OpenCLDepthPacketProcessorImpl()
+  ~OpenCLKdeDepthPacketProcessorImpl()
   {
     delete ir_frame;
     delete depth_frame;
@@ -336,6 +344,12 @@ public:
 
     oss << " -D MIN_DEPTH=" << config.MinDepth * 1000.0f << "f";
     oss << " -D MAX_DEPTH=" << config.MaxDepth * 1000.0f << "f";
+
+    oss << " -D KDE_SIGMA_SQR="<<params.kde_sigma_sqr<<"f";
+    oss << " -D KDE_NEIGBORHOOD_SIZE="<<params.kde_neigborhood_size;
+    oss << " -D UNWRAPPING_LIKELIHOOD_SCALE="<<params.unwrapping_likelihood_scale<<"f";
+    oss << " -D PHASE_CONFIDENCE_SCALE="<<params.phase_confidence_scale<<"f";
+    oss << " -D KDE_THRESHOLD="<<params.kde_threshold<<"f";
 
     oss << " -cl-mad-enable -cl-no-signed-zeros -cl-fast-relaxed-math";
     options = oss.str();
@@ -469,12 +483,14 @@ public:
     buf_x_table_size = IMAGE_SIZE * sizeof(cl_float);
     buf_z_table_size = IMAGE_SIZE * sizeof(cl_float);
     buf_packet_size = ((IMAGE_SIZE * 11) / 16) * 10 * sizeof(cl_ushort);
+    buf_gauss_kernel_size = (2*params.kde_neigborhood_size+1)*sizeof(cl_float);
 
     CHECK_CL_PARAM(buf_lut11to16 = cl::Buffer(context, CL_MEM_READ_ONLY, buf_lut11to16_size, NULL, &err));
     CHECK_CL_PARAM(buf_p0_table = cl::Buffer(context, CL_MEM_READ_ONLY, buf_p0_table_size, NULL, &err));
     CHECK_CL_PARAM(buf_x_table = cl::Buffer(context, CL_MEM_READ_ONLY, buf_x_table_size, NULL, &err));
     CHECK_CL_PARAM(buf_z_table = cl::Buffer(context, CL_MEM_READ_ONLY, buf_z_table_size, NULL, &err));
     CHECK_CL_PARAM(buf_packet = cl::Buffer(context, CL_MEM_READ_ONLY, buf_packet_size, NULL, &err));
+    CHECK_CL_PARAM(buf_gaussian_kernel = cl::Buffer(context, CL_MEM_READ_ONLY, buf_gauss_kernel_size, NULL, &err));
 
     //Read-Write
     buf_a_size = IMAGE_SIZE * sizeof(cl_float3);
@@ -486,7 +502,7 @@ public:
     buf_edge_test_size = IMAGE_SIZE * sizeof(cl_uchar);
     buf_depth_size = IMAGE_SIZE * sizeof(cl_float);
     buf_ir_sum_size = IMAGE_SIZE * sizeof(cl_float);
-    buf_filtered_size = IMAGE_SIZE * sizeof(cl_float);
+    buf_phase_conf_size = IMAGE_SIZE * sizeof(cl_float4);
 
     CHECK_CL_PARAM(buf_a = cl::Buffer(context, CL_MEM_READ_WRITE, buf_a_size, NULL, &err));
     CHECK_CL_PARAM(buf_b = cl::Buffer(context, CL_MEM_READ_WRITE, buf_b_size, NULL, &err));
@@ -497,7 +513,16 @@ public:
     CHECK_CL_PARAM(buf_edge_test = cl::Buffer(context, CL_MEM_READ_WRITE, buf_edge_test_size, NULL, &err));
     CHECK_CL_PARAM(buf_depth = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
     CHECK_CL_PARAM(buf_ir_sum = cl::Buffer(context, CL_MEM_READ_WRITE, buf_ir_sum_size, NULL, &err));
-    CHECK_CL_PARAM(buf_filtered = cl::Buffer(context, CL_MEM_WRITE_ONLY, buf_filtered_size, NULL, &err));
+    CHECK_CL_PARAM(buf_phase_1 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+    CHECK_CL_PARAM(buf_phase_2 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+    CHECK_CL_PARAM(buf_conf_1 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+    CHECK_CL_PARAM(buf_conf_2 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+    CHECK_CL_PARAM(buf_phase_conf = cl::Buffer(context, CL_MEM_READ_WRITE, buf_phase_conf_size, NULL, &err));
+    if(params.num_hyps == 3)
+    {
+      CHECK_CL_PARAM(buf_phase_3 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+      CHECK_CL_PARAM(buf_conf_3 = cl::Buffer(context, CL_MEM_READ_WRITE, buf_depth_size, NULL, &err));
+    }
 
     return true;
   }
@@ -531,19 +556,44 @@ public:
     CHECK_CL_RETURN(kernel_filterPixelStage1.setArg(4, buf_b_filtered));
     CHECK_CL_RETURN(kernel_filterPixelStage1.setArg(5, buf_edge_test));
 
-    CHECK_CL_PARAM(kernel_processPixelStage2 = cl::Kernel(program, "processPixelStage2", &err));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(0, config.EnableBilateralFilter ? buf_a_filtered : buf_a));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(1, config.EnableBilateralFilter ? buf_b_filtered : buf_b));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(2, buf_x_table));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(3, buf_z_table));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(4, buf_depth));
-    CHECK_CL_RETURN(kernel_processPixelStage2.setArg(5, buf_ir_sum));
+    if(params.num_hyps == 3)
+    {
+      CHECK_CL_PARAM(kernel_processPixelStage2_phase = cl::Kernel(program, "processPixelStage2_phase3", &err));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(0, config.EnableBilateralFilter ? buf_a_filtered : buf_a));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(1, config.EnableBilateralFilter ? buf_b_filtered : buf_b));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(2, buf_phase_1));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(3, buf_phase_2));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(4, buf_phase_3));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(5, buf_conf_1));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(6, buf_conf_2));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(7, buf_conf_3));
 
-    CHECK_CL_PARAM(kernel_filterPixelStage2 = cl::Kernel(program, "filterPixelStage2", &err));
-    CHECK_CL_RETURN(kernel_filterPixelStage2.setArg(0, buf_depth));
-    CHECK_CL_RETURN(kernel_filterPixelStage2.setArg(1, buf_ir_sum));
-    CHECK_CL_RETURN(kernel_filterPixelStage2.setArg(2, buf_edge_test));
-    CHECK_CL_RETURN(kernel_filterPixelStage2.setArg(3, buf_filtered));
+      CHECK_CL_PARAM(kernel_filter_kde = cl::Kernel(program, "filter_kde3", &err));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(0, buf_phase_1));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(1, buf_phase_2));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(2, buf_phase_3));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(3, buf_conf_1));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(4, buf_conf_2));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(5, buf_conf_3));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(6, buf_gaussian_kernel));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(7, buf_z_table));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(8, buf_x_table));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(9, buf_depth));
+    }
+    else
+    {
+      CHECK_CL_PARAM(kernel_processPixelStage2_phase = cl::Kernel(program, "processPixelStage2_phase", &err));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(0, config.EnableBilateralFilter ? buf_a_filtered : buf_a));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(1, config.EnableBilateralFilter ? buf_b_filtered : buf_b));
+      CHECK_CL_RETURN(kernel_processPixelStage2_phase.setArg(2, buf_phase_conf));
+
+      CHECK_CL_PARAM(kernel_filter_kde = cl::Kernel(program, "filter_kde", &err));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(0, buf_phase_conf));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(1, buf_gaussian_kernel));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(2, buf_z_table));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(3, buf_x_table));
+      CHECK_CL_RETURN(kernel_filter_kde.setArg(4, buf_depth));
+    }
 
     programInitialized = true;
     return true;
@@ -567,18 +617,11 @@ public:
       eventFPS1[0] = eventPPS1[0];
     }
 
-    CHECK_CL_RETURN(queue.enqueueNDRangeKernel(kernel_processPixelStage2, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NullRange, &eventFPS1, &eventPPS2[0]));
+    CHECK_CL_RETURN(queue.enqueueNDRangeKernel(kernel_processPixelStage2_phase, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NullRange, &eventFPS1, &eventPPS2[0]));
 
-    if(config.EnableEdgeAwareFilter)
-    {
-      CHECK_CL_RETURN(queue.enqueueNDRangeKernel(kernel_filterPixelStage2, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NullRange, &eventPPS2, &eventFPS2[0]));
-    }
-    else
-    {
-      eventFPS2[0] = eventPPS2[0];
-    }
+    CHECK_CL_RETURN(queue.enqueueNDRangeKernel(kernel_filter_kde, cl::NullRange, cl::NDRange(IMAGE_SIZE), cl::NullRange, &eventPPS2, &eventFPS2[0]));
 
-    CHECK_CL_RETURN(queue.enqueueReadBuffer(config.EnableEdgeAwareFilter ? buf_filtered : buf_depth, CL_FALSE, 0, buf_depth_size, depth_frame->data, &eventFPS2, &eventReadDepth));
+    CHECK_CL_RETURN(queue.enqueueReadBuffer(buf_depth, CL_FALSE, 0, buf_depth_size, depth_frame->data, &eventFPS2, &eventReadDepth));
     CHECK_CL_RETURN(eventReadIr.wait());
     CHECK_CL_RETURN(eventReadDepth.wait());
 
@@ -617,7 +660,7 @@ public:
 
   bool readProgram(std::string &source) const
   {
-    source = loadCLSource("opencl_depth_packet_processor.cl");
+    source = loadCLKdeSource("opencl_kde_depth_packet_processor.cl");
     return !source.empty();
   }
 
@@ -644,13 +687,13 @@ public:
 
   void newIrFrame()
   {
-    ir_frame = new OpenCLFrame(static_cast<OpenCLBuffer *>(ir_buffer_allocator->allocate(IMAGE_SIZE * sizeof(cl_float))));
+    ir_frame = new OpenCLKdeFrame(static_cast<OpenCLKdeBuffer *>(ir_buffer_allocator->allocate(IMAGE_SIZE * sizeof(cl_float))));
     ir_frame->format = Frame::Float;
   }
 
   void newDepthFrame()
   {
-    depth_frame = new OpenCLFrame(static_cast<OpenCLBuffer *>(depth_buffer_allocator->allocate(IMAGE_SIZE * sizeof(cl_float))));
+    depth_frame = new OpenCLKdeFrame(static_cast<OpenCLKdeBuffer *>(depth_buffer_allocator->allocate(IMAGE_SIZE * sizeof(cl_float))));
     depth_frame->format = Frame::Float;
   }
 
@@ -658,7 +701,7 @@ public:
   {
     if(!deviceInitialized)
     {
-      LOG_ERROR << "OpenCLDepthPacketProcessor is not initialized!";
+      LOG_ERROR << "OpenCLKdeDepthPacketProcessor is not initialized!";
       return false;
     }
 
@@ -690,15 +733,24 @@ public:
   {
     if(!deviceInitialized)
     {
-      LOG_ERROR << "OpenCLDepthPacketProcessor is not initialized!";
+      LOG_ERROR << "OpenCLKdeDepthPacketProcessor is not initialized!";
       return false;
     }
 
     cl::Event event0, event1;
     CHECK_CL_RETURN(queue.enqueueWriteBuffer(buf_x_table, CL_FALSE, 0, buf_x_table_size, xtable, NULL, &event0));
     CHECK_CL_RETURN(queue.enqueueWriteBuffer(buf_z_table, CL_FALSE, 0, buf_z_table_size, ztable, NULL, &event1));
+
+    float* gauss_kernel;
+    createGaussianKernel(&gauss_kernel, params.kde_neigborhood_size);
+
+    cl::Event event2;
+    CHECK_CL_RETURN(queue.enqueueWriteBuffer(buf_gaussian_kernel, CL_FALSE, 0, buf_gauss_kernel_size, gauss_kernel, NULL, &event2));
+
+
     CHECK_CL_RETURN(event0.wait());
     CHECK_CL_RETURN(event1.wait());
+    CHECK_CL_RETURN(event2.wait());
     return true;
   }
 
@@ -706,7 +758,7 @@ public:
   {
     if(!deviceInitialized)
     {
-      LOG_ERROR << "OpenCLDepthPacketProcessor is not initialized!";
+      LOG_ERROR << "OpenCLKdeDepthPacketProcessor is not initialized!";
       return false;
     }
 
@@ -715,19 +767,31 @@ public:
     CHECK_CL_RETURN(event.wait());
     return true;
   }
+
+  //initialize spatial weights
+  void createGaussianKernel(float** kernel, int size)
+  {
+    *kernel = new float[2*size+1];
+    float sigma = 0.5f*(float)size;
+
+    for(int i = -size; i <= size; i++)
+    {
+      (*kernel)[i+size] = exp(-0.5f*i*i/(sigma*sigma));
+    }
+  }
 };
 
-OpenCLDepthPacketProcessor::OpenCLDepthPacketProcessor(const int deviceId) :
-  impl_(new OpenCLDepthPacketProcessorImpl(deviceId))
+OpenCLKdeDepthPacketProcessor::OpenCLKdeDepthPacketProcessor(const int deviceId) :
+  impl_(new OpenCLKdeDepthPacketProcessorImpl(deviceId))
 {
 }
 
-OpenCLDepthPacketProcessor::~OpenCLDepthPacketProcessor()
+OpenCLKdeDepthPacketProcessor::~OpenCLKdeDepthPacketProcessor()
 {
   delete impl_;
 }
 
-void OpenCLDepthPacketProcessor::setConfiguration(const libfreenect2::DepthPacketProcessor::Config &config)
+void OpenCLKdeDepthPacketProcessor::setConfiguration(const libfreenect2::DepthPacketProcessor::Config &config)
 {
   DepthPacketProcessor::setConfiguration(config);
 
@@ -750,7 +814,7 @@ void OpenCLDepthPacketProcessor::setConfiguration(const libfreenect2::DepthPacke
     impl_->buildProgram(impl_->sourceCode);
 }
 
-void OpenCLDepthPacketProcessor::loadP0TablesFromCommandResponse(unsigned char *buffer, size_t buffer_length)
+void OpenCLKdeDepthPacketProcessor::loadP0TablesFromCommandResponse(unsigned char *buffer, size_t buffer_length)
 {
   libfreenect2::protocol::P0TablesResponse *p0table = (libfreenect2::protocol::P0TablesResponse *)buffer;
 
@@ -763,22 +827,22 @@ void OpenCLDepthPacketProcessor::loadP0TablesFromCommandResponse(unsigned char *
   impl_->fill_trig_table(p0table);
 }
 
-void OpenCLDepthPacketProcessor::loadXZTables(const float *xtable, const float *ztable)
+void OpenCLKdeDepthPacketProcessor::loadXZTables(const float *xtable, const float *ztable)
 {
   impl_->fill_xz_tables(xtable, ztable);
 }
 
-void OpenCLDepthPacketProcessor::loadLookupTable(const short *lut)
+void OpenCLKdeDepthPacketProcessor::loadLookupTable(const short *lut)
 {
   impl_->fill_lut(lut);
 }
 
-bool OpenCLDepthPacketProcessor::good()
+bool OpenCLKdeDepthPacketProcessor::good()
 {
   return impl_->deviceInitialized && impl_->runtimeOk;
 }
 
-void OpenCLDepthPacketProcessor::process(const DepthPacket &packet)
+void OpenCLKdeDepthPacketProcessor::process(const DepthPacket &packet)
 {
   if (!listener_)
     return;
@@ -786,7 +850,7 @@ void OpenCLDepthPacketProcessor::process(const DepthPacket &packet)
   if(!impl_->programInitialized && !impl_->initProgram())
   {
     impl_->runtimeOk = false;
-    LOG_ERROR << "could not initialize OpenCLDepthPacketProcessor";
+    LOG_ERROR << "could not initialize OpenCLKdeDepthPacketProcessor";
     return;
   }
 
@@ -813,7 +877,7 @@ void OpenCLDepthPacketProcessor::process(const DepthPacket &packet)
     impl_->newDepthFrame();
 }
 
-Allocator *OpenCLDepthPacketProcessor::getAllocator()
+Allocator *OpenCLKdeDepthPacketProcessor::getAllocator()
 {
   return impl_->input_buffer_allocator;
 }

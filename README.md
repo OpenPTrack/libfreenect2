@@ -8,7 +8,7 @@
 * [Maintainers](README.md#maintainers)
 * [Installation](README.md#installation)
   * [Windows / Visual Studio](README.md#windows--visual-studio)
-  * [MacOS X](README.md#mac-osx)
+  * [MacOS](README.md#macos)
   * [Linux](README.md#linux)
 * [API Documentation (external)](https://openkinect.github.io/libfreenect2/)
 
@@ -18,7 +18,11 @@ Driver for Kinect for Windows v2 (K4W2) devices (release and developer preview).
 
 Note: libfreenect2 does not do anything for either Kinect for Windows v1 or Kinect for Xbox 360 sensors. Use libfreenect1 for those sensors.
 
-If you are using libfreenect2 in an academic context, please cite our work using the following DOI: [![DOI](https://zenodo.org/badge/20096/OpenKinect/libfreenect2.svg)](https://zenodo.org/badge/latestdoi/20096/OpenKinect/libfreenect2)
+If you are using libfreenect2 in an academic context, please cite our work using the following DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.50641.svg)](https://doi.org/10.5281/zenodo.50641)
+
+
+
+If you use the KDE depth unwrapping algorithm implemented in the library, please also cite this ECCV 2016 [paper](http://users.isy.liu.se/cvl/perfo/abstracts/jaremo16.html).
 
 This driver supports:
 * RGB image transfer
@@ -116,9 +120,9 @@ When you report USB issues, please attach relevant debug log from running the pr
 
     Open a Git shell (GitHub for Windows), or any shell that has access to git.exe and msbuild.exe
     ```
-cd depends/
-.\install_libusb_vs2013.cmd
-```
+    cd depends/
+    .\install_libusb_vs2013.cmd
+    ```
     Or `install_libusb_vs2015.cmd`. If you see some errors, you can always open the cmd files and follow the git commands, and maybe build `libusb_201x.sln` with Visual Studio by hand. Building with "Win32" is not recommended as it results in lower performance.
 * Install TurboJPEG
 
@@ -129,7 +133,7 @@ cd depends/
 * Install OpenCL (optional)
     1. Intel GPU: Download "Intel® SDK for OpenCL™ Applications 2016" from https://software.intel.com/en-us/intel-opencl (requires free registration) and install it.
 * Install CUDA (optional, Nvidia only)
-    1. Download CUDA Toolkit and install it. NOTE: CUDA 7.5 does not support Visual Studio 2015.
+    1. Download CUDA Toolkit and install it. You MUST install the samples too.
 * Install OpenNI2 (optional)
 
     Download OpenNI 2.2.0.33 (x64) from http://structure.io/openni, install it to default locations (`C:\Program Files...`).
@@ -137,57 +141,52 @@ cd depends/
 
     The default installation path is `install`, you may change it by editing `CMAKE_INSTALL_PREFIX`.
     ```
-mkdir build && cd build
-cmake .. -G "Visual Studio 12 2013 Win64"
-cmake --build . --config RelWithDebInfo --target install
-```
+    mkdir build && cd build
+    cmake .. -G "Visual Studio 12 2013 Win64"
+    cmake --build . --config RelWithDebInfo --target install
+    ```
     Or `-G "Visual Studio 14 2015 Win64"`.
 * Run the test program: `.\install\bin\Protonect.exe`, or start debugging in Visual Studio.
 * Test OpenNI2 (optional)
 
     Copy freenect2-openni2.dll, and other dll files (libusb-1.0.dll, glfw.dll, etc.) in `install\bin` to `C:\Program Files\OpenNI2\Tools\OpenNI2\Drivers`. Then run `C:\Program Files\OpenNI\Tools\NiViewer.exe`. Environment variable `LIBFREENECT2_PIPELINE` can be set to `cl`, `cuda`, etc to specify the pipeline.
 
-### Mac OSX
+### MacOS
 
 Use your favorite package managers (brew, ports, etc.) to install most if not all dependencies:
 
 * Make sure these build tools are available: wget, git, cmake, pkg-config. Xcode may provide some of them. Install the rest via package managers.
 * Download libfreenect2 source
-
     ```
-git clone https://github.com/OpenKinect/libfreenect2.git
-cd libfreenect2
-```
+    git clone https://github.com/OpenKinect/libfreenect2.git
+    cd libfreenect2
+    ```
 * Install dependencies: libusb, GLFW
-
     ```
-brew update
-brew install libusb
-brew tap homebrew/versions
-brew install glfw3
-```
+    brew update
+    brew install libusb
+    brew tap homebrew/versions
+    brew install glfw3
+    ```
 * Install TurboJPEG (optional)
-
     ```
-brew tap homebrew/science
-brew install jpeg-turbo
-```
+    brew install jpeg-turbo
+    ```
 * Install CUDA (optional): TODO
 * Install OpenNI2 (optional)
-
     ```
-brew install openni2
-export OPENNI2_REDIST=/usr/local/lib/ni2
-export OPENNI2_INCLUDE=/usr/local/include/ni2
-```
+    brew tap brewsci/science
+    brew install openni2
+    export OPENNI2_REDIST=/usr/local/lib/ni2
+    export OPENNI2_INCLUDE=/usr/local/include/ni2
+    ```
 * Build
-
     ```
-mkdir build && cd build
-cmake ..
-make
-make install
-```
+    mkdir build && cd build
+    cmake ..
+    make
+    make install
+    ```
 * Run the test program: `./bin/Protonect`
 * Test OpenNI2. `make install-openni2` (may need sudo), then run `NiViewer`. Environment variable `LIBFREENECT2_PIPELINE` can be set to `cl`, `cuda`, etc to specify the pipeline.
 
@@ -196,29 +195,26 @@ make install
 Note: Ubuntu 12.04 is too old to support. Debian jessie may also be too old, and Debian stretch is implied in the following.
 
 * Download libfreenect2 source
-
     ```
-git clone https://github.com/OpenKinect/libfreenect2.git
-cd libfreenect2
-```
+    git clone https://github.com/OpenKinect/libfreenect2.git
+    cd libfreenect2
+    ```
 * (Ubuntu 14.04 only) Download upgrade deb files
-
     ```
-cd depends; ./download_debs_trusty.sh
-```
+    cd depends; ./download_debs_trusty.sh
+    ```
 * Install build tools
-
     ```
-sudo apt-get install build-essential cmake pkg-config
-```
+    sudo apt-get install build-essential cmake pkg-config
+    ```
 * Install libusb. The version must be >= 1.0.20.
     1. (Ubuntu 14.04 only) `sudo dpkg -i debs/libusb*deb`
     2. (Other) `sudo apt-get install libusb-1.0-0-dev`
 * Install TurboJPEG
-    1. (Ubuntu 14.04 and newer) `sudo apt-get install libturbojpeg libjpeg-turbo8-dev`
-    2. (Debian) `sudo apt-get install libturbojpeg0-dev`
+    1. (Ubuntu 14.04 to 16.04) `sudo apt-get install libturbojpeg libjpeg-turbo8-dev`
+    2. (Debian/Ubuntu 17.10 and newer) `sudo apt-get install libturbojpeg0-dev`
 * Install OpenGL
-    1. (Ubuntu 14.04 only) `sudo dpkg -i debs/libglfw3*deb; sudo apt-get install -f; sudo apt-get install libgl1-mesa-dri-lts-vivid` (If the last command conflicts with other packages, don't do it.)
+    1. (Ubuntu 14.04 only) `sudo dpkg -i debs/libglfw3*deb; sudo apt-get install -f`
     2. (Odroid XU4) OpenGL 3.1 is not supported on this platform. Use `cmake -DENABLE_OPENGL=OFF` later.
     3. (Other) `sudo apt-get install libglfw3-dev`
 * Install OpenCL (optional)
@@ -233,23 +229,21 @@ sudo apt-get install build-essential cmake pkg-config
     - (Ubuntu 14.04 only) Download `cuda-repo-ubuntu1404...*.deb` ("deb (network)") from Nvidia website, follow their installation instructions, including `apt-get install cuda` which installs Nvidia graphics driver.
     - (Jetson TK1) It is preloaded.
     - (Nvidia/Intel dual GPUs) After `apt-get install cuda`, use `sudo prime-select intel` to use Intel GPU for desktop.
-    - (Other) Follow Nvidia website's instructions.
+    - (Other) Follow Nvidia website's instructions. You must install the samples package.
 * Install VAAPI (optional, Intel only)
     1. (Ubuntu 14.04 only) `sudo dpkg -i debs/{libva,i965}*deb; sudo apt-get install -f`
     2. (Other) `sudo apt-get install libva-dev libjpeg-dev`
     3. Linux kernels 4.1 to 4.3 have performance regression. Use 4.0 and earlier or 4.4 and later (Though Ubuntu kernel 4.2.0-28.33~14.04.1 has backported the fix).
 * Install OpenNI2 (optional)
     1. (Ubuntu 14.04 only) `sudo apt-add-repository ppa:deb-rob/ros-trusty && sudo apt-get update` (You don't need this if you have ROS repos), then `sudo apt-get install libopenni2-dev`
-    2. (Other) `sudo apt-get install libopenni2-dev`.
-* Build
-
+    2. (Other) `sudo apt-get install libopenni2-dev`
+* Build (if you have run `cd depends` previously, `cd ..` back to the libfreenect2 root directory first.)
     ```
-cd ..
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/freenect2
-make
-make install
-```
+    mkdir build && cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/freenect2
+    make
+    make install
+    ```
     You need to specify `cmake -Dfreenect2_DIR=$HOME/freenect2/lib/cmake/freenect2` for CMake based third-party application to find libfreenect2.
 * Set up udev rules for device access: `sudo cp ../platform/linux/udev/90-kinect2.rules /etc/udev/rules.d/`, then replug the Kinect.
 * Run the test program: `./bin/Protonect`

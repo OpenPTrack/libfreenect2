@@ -34,44 +34,68 @@ IF(TegraJPEG_IS_L4T)
   ENDIF()
 
   IF(L4T_VER MATCHES ^21.3)
-    SET(L4T_GSTJPEG_URL_PART r21_Release_v3.0/sources)
+    SET(L4T_SRC_PART r21_Release_v3.0/sources/gstjpeg_src.tbz2)
   ELSEIF(L4T_VER MATCHES ^21.4)
-    SET(L4T_GSTJPEG_URL_PART r21_Release_v4.0/source)
+    SET(L4T_SRC_PART r21_Release_v4.0/source/gstjpeg_src.tbz2)
+  ELSEIF(L4T_VER MATCHES ^21.5)
+    SET(L4T_SRC_PART r21_Release_v5.0/source/gstjpeg_src.tbz2)
   ELSEIF(L4T_VER MATCHES ^23.1)
-    SET(L4T_GSTJPEG_URL_PART r23_Release_v1.0/source)
+    SET(L4T_SRC_PART r23_Release_v1.0/source/gstjpeg_src.tbz2)
   ELSEIF(L4T_VER MATCHES ^23.2)
-    SET(L4T_GSTJPEG_URL_PART r23_Release_v2.0/source)
-  ELSEIF(L4T_VER MATCHES ^24.0)
-    SET(L4T_GSTJPEG_URL_PART r24_Release_v1.0/Vulkan_Beta/source)
+    SET(L4T_SRC_PART r23_Release_v2.0/source/gstjpeg_src.tbz2)
+  ELSEIF(L4T_VER MATCHES ^24.1)
+    SET(L4T_SRC_PART r24_Release_v1.0/24.1_64bit/source/gstjpeg_src.tbz2)
+  ELSEIF(L4T_VER MATCHES ^24.2)
+    SET(L4T_SRC_PART r24_Release_v2.0/BSP/sources.tbz2)
+  ELSEIF(L4T_VER MATCHES ^27.1)
+    SET(L4T_SRC_PART r27_Release_v1.0/BSP/r27.1.0_sources.tbz2)
+  ELSEIF(L4T_VER MATCHES ^28.1)
+    SET(L4T_SRC_PART r28_Release_v1.0/BSP/source_release.tbz2)
+  ELSEIF(L4T_VER MATCHES ^28.2)
+    SET(L4T_SRC_PART r28_Release_v2.0/BSP/source_release.tbz2)
   ELSE()
-    MESSAGE(WARNING "Linux4Tegra version (${L4T_VER}) is not recognized.")
+    MESSAGE(WARNING "Linux4Tegra version (${L4T_VER}) is not recognized. Add the new source URL part to FindTegraJPEG.cmake.")
     SET(TegraJPEG_L4T_OK FALSE)
   ENDIF()
 ENDIF()
 
 # Download gstjpeg source
 IF(TegraJPEG_L4T_OK)
-  SET(L4T_GSTJPEG_URL "http://developer.download.nvidia.com/embedded/L4T/${L4T_GSTJPEG_URL_PART}/gstjpeg_src.tbz2")
-  SET(L4T_GSTJPEG_DEST ${DEPENDS_DIR}/gstjpeg/gstjpeg_src.tbz2)
-  IF(NOT EXISTS ${L4T_GSTJPEG_DEST})
-    MESSAGE(STATUS "Downloading gstjpeg_src.tbz2 to ${DEPENDS_DIR}...")
+  SET(L4T_SRC_PATH ${DEPENDS_DIR}/source/${L4T_SRC_PART})
+  GET_FILENAME_COMPONENT(L4T_SRC_DIR ${L4T_SRC_PATH} DIRECTORY)
+  IF(NOT EXISTS ${L4T_SRC_PATH})
+    MESSAGE(STATUS "Downloading ${L4T_SRC_PART}...")
+    SET(L4T_SRC_URL "http://developer.download.nvidia.com/embedded/L4T/${L4T_SRC_PART}")
     # Do we want checksum for the download?
-    FILE(DOWNLOAD ${L4T_GSTJPEG_URL} ${L4T_GSTJPEG_DEST} STATUS L4T_GSTJPEG_STATUS)
-    LIST(GET L4T_GSTJPEG_STATUS 0 L4T_GSTJPEG_ERROR)
-    LIST(GET L4T_GSTJPEG_STATUS 1 L4T_GSTJPEG_MSG)
-    IF(L4T_GSTJPEG_ERROR)
-      MESSAGE(WARNING "Failed to download gstjpeg_src.tbz2: ${L4T_GSTJPEG_MSG}")
-      FILE(REMOVE ${L4T_GSTJPEG_DEST})
+    FILE(DOWNLOAD ${L4T_SRC_URL} ${L4T_SRC_PATH} STATUS L4T_SRC_STATUS)
+    LIST(GET L4T_SRC_STATUS 0 L4T_SRC_ERROR)
+    LIST(GET L4T_SRC_STATUS 1 L4T_SRC_MSG)
+    IF(L4T_SRC_ERROR)
+      MESSAGE(WARNING "Failed to download ${L4T_SRC_PART}: ${L4T_SRC_MSG}")
+      FILE(REMOVE ${L4T_SRC_PATH})
     ENDIF()
   ENDIF()
-  EXECUTE_PROCESS(
-    COMMAND ${CMAKE_COMMAND} -E tar xjf ${L4T_GSTJPEG_DEST} gstjpeg_src/nv_headers
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    RESULT_VARIABLE L4T_HEADERS_ERROR
-    ERROR_VARIABLE L4T_HEADERS_MSG
-  )
-  IF(L4T_HEADERS_ERROR)
-    MESSAGE(WARNING "Failed to unpack gstjpeg_src.tbz2: ${L4T_HEADERS_MSG}")
+
+  FILE(GLOB_RECURSE L4T_GSTJPEG_PATH ${L4T_SRC_DIR}/gstjpeg_src.tbz2)
+  IF(NOT L4T_GSTJPEG_PATH)
+    MESSAGE(STATUS "Extracting ${L4T_SRC_PART}...")
+    EXECUTE_PROCESS(
+      COMMAND ${CMAKE_COMMAND} -E tar xjf ${L4T_SRC_PATH}
+      WORKING_DIRECTORY ${L4T_SRC_DIR}
+    )
+    FILE(GLOB_RECURSE L4T_GSTJPEG_PATH ${L4T_SRC_DIR}/gstjpeg_src.tbz2)
+  ENDIF()
+
+  IF(L4T_GSTJPEG_PATH)
+    EXECUTE_PROCESS(
+      COMMAND ${CMAKE_COMMAND} -E tar xjf ${L4T_GSTJPEG_PATH}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      RESULT_VARIABLE L4T_HEADERS_ERROR
+      ERROR_VARIABLE L4T_HEADERS_MSG
+    )
+    IF(L4T_HEADERS_ERROR)
+      MESSAGE(WARNING "Failed to unpack ${L4T_GSTJPEG_PATH}: ${L4T_HEADERS_MSG}")
+    ENDIF()
   ENDIF()
 ENDIF()
 
@@ -83,8 +107,14 @@ FIND_PATH(TegraJPEG_INCLUDE_DIRS
 )
 
 FIND_LIBRARY(TegraJPEG_LIBRARIES
-  NAMES jpeg nvjpeg
-  DOC "Found TegraJPEG library"
+  NAMES nvjpeg
+  DOC "Found TegraJPEG library (libnvjpeg.so)"
+  PATH_SUFFIXES tegra
+)
+
+FIND_LIBRARY(TegraJPEG_LIBRARIES
+  NAMES jpeg
+  DOC "Found TegraJPEG library (libjpeg.so)"
   PATHS /usr/lib/arm-linux-gnueabihf/tegra
   NO_DEFAULT_PATH
 )

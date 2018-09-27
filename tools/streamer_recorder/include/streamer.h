@@ -1,7 +1,7 @@
 /*
  * This file is part of the OpenKinect Project. http://www.openkinect.org
  *
- * Copyright (c) 2015 individual OpenKinect contributors. See the CONTRIB file
+ * Copyright (c) 2017 individual OpenKinect contributors. See the CONTRIB file
  * for details.
  *
  * This code is licensed to you under the terms of the Apache License, version
@@ -24,26 +24,34 @@
  * either License.
  */
 
-#pragma once
+#ifndef STREAMER_H
+#define STREAMER_H
 
-#include <libfreenect2/registration.h>
+#include <libfreenect2/frame_listener.hpp>
 
-namespace Freenect2Driver {
-  class Registration {
-  private:
-    libfreenect2::Freenect2Device* dev;
-    libfreenect2::Registration* reg;
-    libfreenect2::Frame* lastDepthFrame;
-    bool enabled;
+#include "PracticalSocket.h"
+#include <opencv2/opencv.hpp>
+#include "config.h"
 
-  public:
-    Registration(libfreenect2::Freenect2Device* dev);
-    ~Registration();
+class Streamer
+{
+public:
+  // methods
+  void initialize();
+  void stream(libfreenect2::Frame* frame);
 
-    void depthFrame(libfreenect2::Frame* frame);
-    void colorFrameRGB888(libfreenect2::Frame* srcFrame, libfreenect2::Frame* dstFrame);
-    void setEnable(bool enable = true);
-    bool isEnabled();
-    void depthToColor(int dx, int dy, float dz, float& cx, float& cy);
-  };
-}
+private:
+  // frame related parameters
+  int jpegqual; // Compression Parameter
+  vector<int> compression_params;
+  vector<unsigned char> encoded;
+  int total_pack;
+  int ibuf[1];
+
+  // udp related parameters
+  string servAddress; // Server IP adress
+  unsigned short servPort; // Server port
+  UDPSocket sock;
+};
+
+#endif

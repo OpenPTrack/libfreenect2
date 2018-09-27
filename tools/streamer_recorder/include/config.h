@@ -1,7 +1,7 @@
 /*
  * This file is part of the OpenKinect Project. http://www.openkinect.org
  *
- * Copyright (c) 2015 individual OpenKinect contributors. See the CONTRIB file
+ * Copyright (c) 2017 individual OpenKinect contributors. See the CONTRIB file
  * for details.
  *
  * This code is licensed to you under the terms of the Apache License, version
@@ -24,26 +24,11 @@
  * either License.
  */
 
-#pragma once
-
-#include <libfreenect2/registration.h>
-
-namespace Freenect2Driver {
-  class Registration {
-  private:
-    libfreenect2::Freenect2Device* dev;
-    libfreenect2::Registration* reg;
-    libfreenect2::Frame* lastDepthFrame;
-    bool enabled;
-
-  public:
-    Registration(libfreenect2::Freenect2Device* dev);
-    ~Registration();
-
-    void depthFrame(libfreenect2::Frame* frame);
-    void colorFrameRGB888(libfreenect2::Frame* srcFrame, libfreenect2::Frame* dstFrame);
-    void setEnable(bool enable = true);
-    bool isEnabled();
-    void depthToColor(int dx, int dy, float dz, float& cx, float& cy);
-  };
-}
+#define FRAME_HEIGHT 720
+#define FRAME_WIDTH 1280
+#define FRAME_INTERVAL (1000/30)
+#define PACK_SIZE 4096 //udp pack size; note that OSX limits < 8100 bytes
+#define ENCODE_QUALITY 80
+#define SERVER_ADDRESS "127.0.0.1" // Server IP adress
+#define SERVER_PORT "10000"        // Server Port
+#define MAX_FRAME_ID 30000 // max number of recorded frames, 16.6min max at 30 FPS (max frame ID sort of hardcoded in image naming too, see below)

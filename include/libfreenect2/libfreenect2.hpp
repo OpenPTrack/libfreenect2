@@ -33,6 +33,7 @@
 #include <libfreenect2/frame_listener.hpp>
 #include <libfreenect2/packet_pipeline.h>
 #include <string>
+#include <vector>
 
 namespace libfreenect2
 {
@@ -268,6 +269,54 @@ public:
   Freenect2Device *openDefaultDevice(const PacketPipeline *factory);
 private:
   Freenect2Impl *impl_;
+
+  /* Disable copy and assignment constructors */
+  Freenect2(const Freenect2&);
+  Freenect2& operator=(const Freenect2&);
+};
+
+class Freenect2ReplayImpl;
+
+/**
+ * Library context to create and open replay devices.
+ *
+ * Call openDevice() and control the device with the returned Freenect2ReplayDevice object.
+ */
+class LIBFREENECT2_API Freenect2Replay
+{
+public:
+  /**
+   * Creates the context.
+   */
+  Freenect2Replay();
+  virtual ~Freenect2Replay();
+
+  /** Open a device by a collection of stored frame filenames with default pipeline.
+   * See filename format below.
+   * @param frame_filenames A list of filenames for stored frames.
+   * @return New device object, or NULL on failure
+   */
+  Freenect2Device *openDevice(const std::vector<std::string>& frame_filenames);
+
+  /** Open device by a collection of stored frame filenames with the specified pipeline.
+   * File names non-compliant with the filename format will be skipped.
+   * Filename format: <prefix>_<timestamp>_<sequence>.<suffix>
+   *  <prefix> - a string of the filename, anything
+   *  <timestamp> -- packet timestamp as in pipeline packets
+   *  <sequence> -- frame sequence number in the packet
+   *  <suffix> -- .depth, .jpg, or .jpeg (case sensitive)
+   * @param frame_filenames A list of filenames for stored frames.
+   * @param factory New PacketPipeline instance. This is always automatically freed.
+   * @return New device object, or NULL on failure
+   */
+  Freenect2Device *openDevice(const std::vector<std::string>& frame_filenames, const PacketPipeline *factory);
+
+private:
+  Freenect2ReplayImpl *impl_;
+
+  /* Disable copy and assignment constructors */
+  Freenect2Replay(const Freenect2Replay&);
+  Freenect2Replay& operator=(const Freenect2Replay&);
 };
 
 ///@}
